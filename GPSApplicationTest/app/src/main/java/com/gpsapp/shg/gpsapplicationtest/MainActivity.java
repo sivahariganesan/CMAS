@@ -4,6 +4,7 @@ import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.location.Location;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v7.app.ActionBarActivity;
@@ -16,6 +17,9 @@ import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 
+import com.gpsapp.shg.gpsapplicationtest.register.CMAS;
+import com.gpsapp.shg.gpsapplicationtest.register.DBOperation;
+import com.gpsapp.shg.gpsapplicationtest.register.GPSTracker;
 import com.gpsapp.shg.gpsapplicationtest.register.JSONParser;
 
 import org.apache.http.NameValuePair;
@@ -32,8 +36,9 @@ public class MainActivity extends ActionBarActivity implements View.OnClickListe
     private ProgressDialog progressDialog;
     JSONParser jsonParser=new JSONParser();
     private int success;
-    private Context mainContext;
-    private String message;
+    private DBOperation dbOperation=DBOperation.getInstance();
+    private static Context mainContext;
+    private String message,latitude,longitude;
     private EditText textMobileNumber;
     private Button btnRegister;
     private static String registerUrl="http://192.168.1.6/GPSJSON/register.php";
@@ -42,23 +47,23 @@ public class MainActivity extends ActionBarActivity implements View.OnClickListe
     protected void onCreate(Bundle savedInstanceState)
     {
         final String PREFS_NAME = "PrefsFile";
-
         SharedPreferences settings = getSharedPreferences(PREFS_NAME, 0);
-
-        if (settings.getBoolean("app_first_time", true))
+        if (!dbOperation.isUserRegistered())
         {
             //here the app is being launched for first time, launch your screen
             settings.edit().putBoolean("app_first_time", false).commit();
             super.onCreate(savedInstanceState);
             setContentView(R.layout.activity_main);
-
             textMobileNumber= (EditText) findViewById(R.id.edit_message);
             btnRegister= (Button) findViewById(R.id.register);
         }
         else
         {
             super.onCreate(savedInstanceState);
-            setContentView(R.layout.activity_display_message);
+            //setContentView(R.layout.activity_display_message);
+            Intent intent = new Intent(MainActivity.this, DisplayMessageActivity.class);
+            startActivity(intent);
+            finish();
         }
     }
     @Override
@@ -90,12 +95,15 @@ public class MainActivity extends ActionBarActivity implements View.OnClickListe
 
         return super.onOptionsItemSelected(item);
     }
-
     public void sendMessage(View view)
     {
         if (view.getId()==R.id.register)
         {
             mainContext=this;
+            Location location=new GPSTracker().getLocation();
+            latitude=Double.toString(location.getLatitude());
+            longitude=Double.toString(location.getLongitude());
+            dbOperation.registerUser(textMobileNumber.getText().toString(),latitude,longitude);
             new RegisterMobile().execute();
         }
     }
@@ -116,6 +124,8 @@ public class MainActivity extends ActionBarActivity implements View.OnClickListe
         {
             List<NameValuePair> parameters=new ArrayList<NameValuePair>();
             parameters.add(new BasicNameValuePair("MobileNumber",mobileNumber));
+            parameters.add(new BasicNameValuePair("latitude",latitude));
+            parameters.add(new BasicNameValuePair("longitude",longitude));
             JSONObject jsonObject=jsonParser.makeHTTPRequest(registerUrl,"GET",parameters);
             try
             {
@@ -141,6 +151,7 @@ public class MainActivity extends ActionBarActivity implements View.OnClickListe
                 String message = editText.getText().toString();
                 intent.putExtra(EXTRA_MESSAGE, message);
                 startActivity(intent);
+                finish();
             }
             else
             {
